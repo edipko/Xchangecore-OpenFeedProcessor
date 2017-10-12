@@ -22,7 +22,7 @@ public class OpenFeedProcessor {
 
     private static final Logger logger = LogManager.getLogger(thisClass);
     private static final int timeout = 30;
-    private static final String properties_filename = "feedpuller.properties";
+    private static final String properties_filename = "openfeedprocessor.properties";
 
 
     // Class object to store the parameters
