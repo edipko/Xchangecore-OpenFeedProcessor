@@ -61,30 +61,11 @@ public class OpenFeedProcessor {
             // Load the properties into a object we can continue to reference
             AuthInfo authInfo = new AuthInfo();
 
-            // Sanity check the protocol property
-            String protocol = prop.getProperty("protocol");
-            String useProtocol = "https://";
-            if ((protocol.equals("http")) || (protocol.equals("https"))) {
-                useProtocol = protocol + "://";
-            } else {
-                logger.warn("Bad protocol given, going to try https");
-            }
-
             // Make sure the use did not include the protocol in the url property
-            authInfo.url = useProtocol + prop.getProperty("url")
-                    .replace("https://", "")
-                    .replace("http://", "");
-
-            // Grab the feed type property and verify it is acceptable
-            authInfo.feedtype = prop.getProperty("feedtype").toLowerCase();
-            if (authInfo.feedtype.equals("rss") ||
-                    authInfo.feedtype.equals("kml") ||
-                    authInfo.feedtype.equals("xml")) {
+            authInfo.url = prop.getProperty("url");
+            if (!authInfo.url.isEmpty()) {
                 proceed = true;
-            } else {
-                logger.error("Bad feedtype property: " + authInfo.feedtype);
             }
-
 
             // Grab the username and password properties and validate them
             authInfo.username = prop.getProperty("username");
@@ -107,7 +88,6 @@ public class OpenFeedProcessor {
             if (proceed) {
                 logger.debug("Propertied file read");
                 logger.info("URL: " + authInfo.url);
-                logger.info("Requesting feed type: " + authInfo.feedtype);
                 logger.debug("Using username: " + authInfo.username);
 
                 Path outFile = Paths.get(authInfo.username + "_output." + authInfo.feedtype);
@@ -152,7 +132,7 @@ public class OpenFeedProcessor {
             byte[] authEncBytes = Base64.encodeBase64(authString.getBytes());
             String authStringEnc = new String(authEncBytes);
 
-            URL url = new URL(authInfo.url + "/xchangecore/pub/search?full=true&productType=Incident&productType=Alert&productType=SOI&productType=MapViewContext&format=" + authInfo.feedtype);
+            URL url = new URL(authInfo.url);
             logger.info("Connecting to UICDS: " + url.toString());
 
             urlConnection = (HttpURLConnection) url.openConnection();
@@ -188,14 +168,12 @@ public class OpenFeedProcessor {
             output = new FileOutputStream(properties_filename);
 
             // set the properties value
-            prop.setProperty("protocol", "https");
-            prop.setProperty("url", "host.domain.com");
-            prop.setProperty("feedtype", "one of  xml, kml, or rss");
+            prop.setProperty("url", "see comments above");
             prop.setProperty("username", "username");
             prop.setProperty("password", "password");
 
             // save properties to project root folder
-            prop.store(output, "Properties file for the XchangeCore FeedPuller Adapter");
+            prop.store(output, "Properties file for the XchangeCore OpenFeedProcessor. Specify the Full URL like this: https://host.domain.com/xchangecore/pub/search?full=true&productType=Incident&productType=Alert&productType=SOI&productType=MapViewContext&format=xml");
 
             logger.info("Properties file: " + properties_filename + " ready for customization");
         } catch (IOException io) {
