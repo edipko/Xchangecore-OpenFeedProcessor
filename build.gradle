@@ -1,0 +1,30 @@
+group 'com.spotonresponse.xchangecore'
+version '1.0'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+}
+
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'FeedPuller',
+                'Implementation-Version': version,
+                'Main-Class': 'com.spotonresponse.xchangecore.FeedPuller',
+                'Sealed': 'true'
+    }
+    from {
+        configurations.compile.collect { it.isDirectory() ? it : zipTree(it) }
+    }
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile group: 'commons-codec', name: 'commons-codec', version: '1.5'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.9.1'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.9.1'
+    compile group: 'javax.ws.rs', name: 'javax.ws.rs-api', version: '2.0'
+}
