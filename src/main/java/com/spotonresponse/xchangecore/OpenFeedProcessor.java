@@ -1,160 +1,135 @@
 package com.spotonresponse.xchangecore;
 
-import org.apache.commons.codec.binary.Base64;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.SocketTimeoutException;
-import java.net.URL;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.Properties;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 
 public class OpenFeedProcessor {
 
+    public static final int timeout = 30;
+
+
     private static final Class thisClass = OpenFeedProcessor.class;
-
-
     private static final Logger logger = LogManager.getLogger(thisClass);
-    private static final int timeout = 30;
     private static final String properties_filename = "openfeedprocessor.properties";
+    private static Properties prop = new Properties();
+    private static int exitStatus = 0;
 
+    private static int DEFAULT_POLL_INTERVAL = 3600;   // 3600 seconds = 1 hour
 
     // Class object to store the parameters
     static class AuthInfo {
         String url;
-        String feedtype;
         String username;
         String password;
+        int pollInterval;
     }
 
 
-    public static void main(String[] args) {
-        Properties prop = new Properties();
-        InputStream input = null;
+    public static void processURLs() {
+        Boolean moreURLs = true;
+        int urlcount = 1;
 
-        try {
 
-            String version = thisClass.getPackage().getImplementationVersion();
-            logger.info(thisClass.getSimpleName() + " Version: " + version + " starting up.");
+        int maxThreads = 10;
 
-            // load a properties file, if it does not exist, create one and then exit
+        ThreadPoolExecutor tpe = new ThreadPoolExecutor(
+                maxThreads,
+                maxThreads,
+                10L,
+                TimeUnit.SECONDS,
+                new ArrayBlockingQueue<Runnable>(maxThreads, true),
+                new ThreadPoolExecutor.CallerRunsPolicy());
+
+
+        while (moreURLs) {
             try {
-                input = new FileInputStream(properties_filename);
-                prop.load(input);
-            } catch (FileNotFoundException fnf) {
-                // Most likely the initial run of this script
-                // Create a generic properties file for the user and then exit
-                createPropertiesFile();
-                System.exit(1);
-            }
+                // This variable will be used during sanity check of the properties
+                Boolean proceed = false;
 
+                // Load the properties into a object we can continue to reference
+                AuthInfo authInfo = new AuthInfo();
 
-            // This variable will be used during sanity check of the properties
-            Boolean proceed = false;
+                // We are looping through the properties file looking for
+                // numbered entries.  As soon as what we are looking for does
+                // not exist we stop looking.  Not the best method, but...
+                if (prop.getProperty("url" + urlcount) == null) {
+                    moreURLs = false;
+                    break;
+                }
+                authInfo.url = prop.getProperty("url" + urlcount);
+                if (!authInfo.url.isEmpty()) {
+                    proceed = true;
+                }
 
-            // Load the properties into a object we can continue to reference
-            AuthInfo authInfo = new AuthInfo();
-
-            // Make sure the use did not include the protocol in the url property
-            authInfo.url = prop.getProperty("url");
-            if (!authInfo.url.isEmpty()) {
-                proceed = true;
-            }
-
-            // Grab the username and password properties and validate them
-            authInfo.username = prop.getProperty("username");
-            authInfo.password = prop.getProperty("password");
-            if (authInfo.username.equals("username")) {
-                logger.error("You must configure the properties file: " + properties_filename);
-                proceed = false;
-            }
-            if (authInfo.username.isEmpty()) {
-                logger.error("Must specify a valid username in the properties file");
-                proceed = false;
-            }
-            if (authInfo.password.isEmpty()) {
-                logger.error("Must specify a valid password in the properties file");
-                proceed = false;
-            }
-
-
-            // If all is well, log the information we have and fetch the data
-            if (proceed) {
-                logger.debug("Propertied file read");
-                logger.info("URL: " + authInfo.url);
-                logger.debug("Using username: " + authInfo.username);
-
-                Path outFile = Paths.get(authInfo.username + "_output." + authInfo.feedtype);
-
-                // Get the stream
-                InputStream data = getData(authInfo);
-                if (data != null) {
-                    // Write the file
-                    Files.copy(data, outFile, StandardCopyOption.REPLACE_EXISTING);
-                    logger.info("Output saved to file: " + outFile.toString());
+                if (prop.getProperty("pollInterval" + urlcount) == null) {
+                    authInfo.pollInterval = DEFAULT_POLL_INTERVAL;
                 } else {
-                    logger.error("Data stream was empty");
+                    authInfo.pollInterval = Integer.valueOf(prop.getProperty("pollInterval" + urlcount));
                 }
-            } else {
-                logger.error("Problem with properties file");
+
+                // Grab the username and password properties and validate them
+                authInfo.username = prop.getProperty("username" + urlcount);
+                authInfo.password = prop.getProperty("password" + urlcount);
+
+                // If the default username is still in the properties file, let the user know the
+                // file is not configured
+                if (authInfo.username.equals("username")) {
+                    logger.error("You must configure the properties file: " + properties_filename);
+                    proceed = false;
+                }
+
+                // If the username or password is empty - we cannot use the URL
+                if (authInfo.username.isEmpty()) {
+                    logger.error("Must specify a valid username in the properties file");
+                    proceed = false;
+                }
+                if (authInfo.password.isEmpty()) {
+                    logger.error("Must specify a valid password in the properties file");
+                    proceed = false;
+                }
+
+
+                // If all is well, log the information we have and fetch the data
+                if (proceed) {
+                    logger.info("URL: " + authInfo.url);
+                    logger.debug("Using username: " + authInfo.username);
+
+                    // We are going to break apart the URL and determine the feed type
+                    // default to:  xml
+                    String feedtype = "xml";
+                    String[] urlpieces = authInfo.url.split("&");
+                    for (String s : urlpieces) {
+                        if (s.contains("format")) {
+                            feedtype = s.split("=")[1];
+                        }
+                    }
+                    Path outFile = Paths.get(authInfo.username + "_output." + feedtype);
+
+                    tpe.execute(new PollXCore(authInfo, outFile));
+
+                } else {
+                    logger.error("Problem with properties file");
+                }
+
+            } catch (Exception ex) {
+                logger.error(ex);
             }
 
-        } catch (IOException ex) {
-            ex.printStackTrace();
-            logger.error(ex);
-
-        } finally {
-            if (input != null) {
-                try {
-                    input.close();
-                    logger.debug("Closing input stream");
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    logger.error(e);
-                }
-            }
+            // See if we have more URLs in the properties file
+            urlcount++;
         }
     }
 
-
-    // This class will actually pull the data from XChangeCore
-    private static InputStream getData(AuthInfo authInfo) {
-        InputStream result = null;
-        HttpURLConnection urlConnection = null;
-        try {
-            String authString = authInfo.username + ":" + authInfo.password;
-            byte[] authEncBytes = Base64.encodeBase64(authString.getBytes());
-            String authStringEnc = new String(authEncBytes);
-
-            URL url = new URL(authInfo.url);
-            logger.info("Connecting to UICDS: " + url.toString());
-
-            urlConnection = (HttpURLConnection) url.openConnection();
-            urlConnection.setConnectTimeout(timeout * 1000);
-            urlConnection.setRequestProperty("Authorization", "Basic "
-                    + authStringEnc);
-            result = urlConnection.getInputStream();
-
-        } catch (SocketTimeoutException ste) {
-            logger.error("Unable to connect to Xchangecore");
-        } catch (IOException ioex) {
-            if (urlConnection.getResponseCode() == 401) {
-                logger.error("Authentication Fails - check username and password");
-            }
-        } catch (Exception ex) {
-            logger.error("Error getting XChangecore data" + ex);
-            ex.printStackTrace();
-        } finally {
-            return result;
-        }
-
-    }
 
 
     // If there is no properties, this method will create one
@@ -162,15 +137,14 @@ public class OpenFeedProcessor {
         OutputStream output = null;
 
         try {
-
             logger.info("Creating properties file: " + properties_filename);
             Properties prop = new Properties();
             output = new FileOutputStream(properties_filename);
 
             // set the properties value
-            prop.setProperty("url", "see comments above");
-            prop.setProperty("username", "username");
-            prop.setProperty("password", "password");
+            prop.setProperty("url1", "{see comments above}");
+            prop.setProperty("username1", "username");
+            prop.setProperty("password1", "password");
 
             // save properties to project root folder
             prop.store(output, "Properties file for the XchangeCore OpenFeedProcessor. Specify the Full URL like this: https://host.domain.com/xchangecore/pub/search?full=true&productType=Incident&productType=Alert&productType=SOI&productType=MapViewContext&format=xml");
@@ -190,6 +164,57 @@ public class OpenFeedProcessor {
             }
 
         }
+    }
+
+
+    private static boolean loadProperties() {
+        InputStream input = null;
+
+        logger.debug("Reading properties file");
+        // load a properties file, if it does not exist, create one and then exit
+        try {
+            input = new FileInputStream(properties_filename);
+            prop.load(input);
+        } catch (FileNotFoundException fnf) {
+            // Most likely the initial run of this script
+            // Create a generic properties file for the user and then exit
+            createPropertiesFile();
+            exitStatus = 1;
+            return false;
+        } catch (IOException ex) {
+            logger.fatal("Unable to read existing properties file");
+            exitStatus = 2;
+            return false;
+        } finally {
+            if (input != null) {
+                try {
+                    input.close();
+                    logger.debug("Closing input stream");
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    logger.error(e);
+                }
+            }
+        }
+        logger.info("Properties file read");
+        return true;
+    }
+
+
+    public static void main(String[] args) {
+
+        String version = thisClass.getPackage().getImplementationVersion();
+        logger.info(thisClass.getSimpleName() + " Version: " + version + " starting up.");
+
+        // Load the properties file
+        if (loadProperties()) {
+            // If successful, process the URLs
+            processURLs();
+        } else {
+            logger.fatal("Unable to continue");
+            System.exit(exitStatus);
+        }
+
     }
 
 }
