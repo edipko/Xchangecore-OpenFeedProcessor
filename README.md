@@ -50,10 +50,11 @@ output2={output path 2}<br/>
 <b><u>Program Operation</u></b><br/>
 The program is meant to run in the background as a service, and produce an output file on the local filesystem.<br/>
 <br/>
-<b>Command line:</b> <i>java -jar OpenFeedProcessor-1.0.jar</i><br/>
-
-A log file will be produced in the current working directory using log4j2.<br/>
-It is possible to specify command line parameter: <b>-Dlog4j.configurationFile</b> to your own log4j2 configuration file.<br/>
+<b>Command line:</b> <i>java -jar OpenFeedProcessor-1.0.jar</i>
+<br/>
+<li>A log file will be produced in the current working directory using log4j2.</li>
+<li>It is possible to specify command line parameter: <b>-Dlog4j.configurationFile</b> to your own log4j2 configuration file.</li>
+<li>If there is no configuration file, an example config file will be created and the program will exit</li>
 
 
 
