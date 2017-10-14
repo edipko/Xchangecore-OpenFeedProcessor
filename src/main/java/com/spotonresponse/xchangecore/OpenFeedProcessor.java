@@ -32,6 +32,7 @@ public class OpenFeedProcessor {
         String username;
         String password;
         int pollInterval;
+        Path outputFile;
     }
 
 
@@ -99,23 +100,23 @@ public class OpenFeedProcessor {
                 }
 
 
+                // Check the property for the output file
+                if (prop.getProperty("outfile" + urlcount) != null) {
+                    authInfo.outputFile = Paths.get(prop.getProperty("outfile" + urlcount));
+                    logger.info("Going to save to file: " + authInfo.outputFile.toString());
+                } else {
+                    logger.error("No output file specified for URL: " + authInfo.url);
+                    proceed = false;
+                }
+
+
+
                 // If all is well, log the information we have and fetch the data
                 if (proceed) {
                     logger.info("URL: " + authInfo.url);
                     logger.debug("Using username: " + authInfo.username);
 
-                    // We are going to break apart the URL and determine the feed type
-                    // default to:  xml
-                    String feedtype = "xml";
-                    String[] urlpieces = authInfo.url.split("&");
-                    for (String s : urlpieces) {
-                        if (s.contains("format")) {
-                            feedtype = s.split("=")[1];
-                        }
-                    }
-                    Path outFile = Paths.get(authInfo.username + "_output." + feedtype);
-
-                    tpe.execute(new PollXCore(authInfo, outFile));
+                    tpe.execute(new PollXCore(authInfo));
 
                 } else {
                     logger.error("Problem with properties file");
@@ -145,6 +146,7 @@ public class OpenFeedProcessor {
             prop.setProperty("url1", "{see comments above}");
             prop.setProperty("username1", "username");
             prop.setProperty("password1", "password");
+            prop.setProperty("outfile1", "outfile1");
 
             // save properties to project root folder
             prop.store(output, "Properties file for the XchangeCore OpenFeedProcessor. Specify the Full URL like this: https://host.domain.com/xchangecore/pub/search?full=true&productType=Incident&productType=Alert&productType=SOI&productType=MapViewContext&format=xml");

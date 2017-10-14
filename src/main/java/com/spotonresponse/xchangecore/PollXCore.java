@@ -10,7 +10,6 @@ import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 public class PollXCore implements Runnable {
@@ -18,11 +17,9 @@ public class PollXCore implements Runnable {
     private static final Class thisClass = PollXCore.class;
     private static final Logger logger = LogManager.getLogger(thisClass);
     private OpenFeedProcessor.AuthInfo authInfo;
-    private Path outFile;
 
-    public PollXCore(OpenFeedProcessor.AuthInfo _authInfo, Path _outFile) {
+    public PollXCore(OpenFeedProcessor.AuthInfo _authInfo) {
         this.authInfo = _authInfo;
-        this.outFile = _outFile;
     }
 
     public void run() {
@@ -32,11 +29,11 @@ public class PollXCore implements Runnable {
             // Continously loop, sleeping for the specified poll interval between each run
             while (true) {
                 // Get the stream
-                InputStream data = getData(authInfo, outFile);
+                InputStream data = getData(authInfo);
                 if (data != null) {
                     // Write the file
-                    Files.copy(data, outFile, StandardCopyOption.REPLACE_EXISTING);
-                    logger.info("Output saved to file: " + outFile.toString());
+                    Files.copy(data, authInfo.outputFile, StandardCopyOption.REPLACE_EXISTING);
+                    logger.info("Output saved to file: " + authInfo.outputFile.toString());
                 } else {
                     logger.error("Data stream was empty");
                 }
@@ -56,7 +53,7 @@ public class PollXCore implements Runnable {
     }
 
     // This class will actually pull the data from XChangeCore
-    private static InputStream getData(OpenFeedProcessor.AuthInfo authInfo, Path outfile) {
+    private static InputStream getData(OpenFeedProcessor.AuthInfo authInfo) {
         InputStream result = null;
         HttpURLConnection urlConnection = null;
         try {
