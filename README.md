@@ -29,7 +29,7 @@ The format parameter can be one of:   <b>xml, kml, json, or rss</b><br/>
 <b><i>Refer to the Xchangecore documentation about the parameters (http://www.xchangecore.org/)</i></b>
 <br/>
 <br/>
-<b>Configuraiton Example:<b/><br/>
+<b>Configuraiton Example:</b><br/>
 The following configuation will poll two diferent Xchangecore systems, every 10 minutes.<br/>
 The first entry will output all product types, in XML format<br/>
 The second entry will output only incidents and MapViewContext in KML format<br/>
