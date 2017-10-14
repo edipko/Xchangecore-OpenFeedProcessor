@@ -47,6 +47,8 @@ username2={user2}<br/>
 pollInterval2=600<br/>
 output2={output path 2}<br/>
 </font>
+<br/>
+<br/>
 <b><u>Program Operation</u></b><br/>
 The program is meant to run in the background as a service, and produce an output file on the local filesystem.<br/>
 <br/>
